@@ -7,6 +7,8 @@ and vice versa.
 Usecase
 -------
 
+![Diagram of interconnection](./.readme/usecase.png)
+
 Let's say you are running your [systemd] services securely, and use
 [`PrivateNetwork=yes`] in your unit configuration. If you want other programs
 to connect and interact with your service, you best bet is to listen onto an
