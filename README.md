@@ -109,6 +109,16 @@ need to run it as the same user as `foobar-unix.service`.
 
     ExecStart=/usr/local/bin/simpletcpunixrelay 127.0.0.1:8000 /var/run/foobar-unix/socket
 
+Mirrors
+-------
+
+This repository is mirrored to avoid single points of failure.
+
+Mirrors:
+
+  * github.com/acatton/smallunixtcprelay
+  * gitlab.com/acatton/smallunixtcprelay
+  * codeberg.org/acatton/smallunixtcprelay
 
 [`PrivateNetwork=yes`]: https://www.freedesktop.org/software/systemd/man/systemd.exec.html#PrivateNetwork=
 [systemd]: https://systemd.io
