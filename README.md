@@ -116,9 +116,9 @@ This repository is mirrored to avoid single points of failure.
 
 Mirrors:
 
-  * github.com/acatton/smallunixtcprelay
-  * gitlab.com/acatton/smallunixtcprelay
-  * codeberg.org/acatton/smallunixtcprelay
+  * http://github.com/acatton/smallunixtcprelay
+  * http://gitlab.com/acatton/smallunixtcprelay
+  * http://codeberg.org/acatton/smallunixtcprelay
 
 [`PrivateNetwork=yes`]: https://www.freedesktop.org/software/systemd/man/systemd.exec.html#PrivateNetwork=
 [systemd]: https://systemd.io
