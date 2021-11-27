@@ -1,0 +1,12 @@
+stages:
+- test
+
+sast:
+  variables:
+    SAST_EXCLUDED_ANALYZERS: >
+      bandit, brakeman, eslint, flawfinder, kubesec, nodejs-scan,
+      phpcs-security-audit, pmd-apex, security-code-scan, sobelow, spotbugs
+  stage: test
+
+include:
+- template: Security/SAST.gitlab-ci.yml
