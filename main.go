@@ -16,11 +16,14 @@ import (
 	"sync"
 )
 
+const usageExit = 64
+
 // usage prints the usage for the program.
 func usage(progname string) {
 	fmt.Printf("Usage: %s source destination\n\n", progname)
 	fmt.Println("  source: the local address onto which to listen for new connections")
 	fmt.Println("  destination: the remote address to which to connect")
+	os.Exit(usageExit)
 }
 
 // logError formats and log a message with the "ERROR" prefix.
