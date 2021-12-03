@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021 Antoine Catton and contributors. All right reserved.
- * Licensed under the MIT license. See LICENSE file in project root for details.
+ * Licensed under the ISC license. See LICENSE file in project root for details.
  *
  */
 package main
