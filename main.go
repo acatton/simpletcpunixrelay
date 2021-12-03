@@ -145,19 +145,7 @@ func (p *proxy) handleConn(in net.Conn) {
 	wg.Wait()
 }
 
-func main() {
-	flag.Parse()
-	progname := os.Args[0]
-
-	args := flag.Args()
-	if len(args) != 2 {
-		logError("could not parse arguments. We only require 2 arguments, got %d", len(args))
-		usage(progname)
-	}
-
-	sourceAddr := args[0]
-	destAddr := args[1]
-
+func run(sourceAddr, destAddr string) error {
 	listener, err := getSourceListener(sourceAddr)
 	if err != nil {
 		log.Fatalf("could not listen on the source: %v", err)
@@ -185,7 +173,23 @@ func main() {
 		}(destAddr),
 	}
 
-	err = p.run()
+	return p.run()
+}
+
+func main() {
+	flag.Parse()
+	progname := os.Args[0]
+
+	args := flag.Args()
+	if len(args) != 2 {
+		logError("could not parse arguments. We only require 2 arguments, got %d", len(args))
+		usage(progname)
+	}
+
+	sourceAddr := args[0]
+	destAddr := args[1]
+
+	err := run(sourceAddr, destAddr)
 	if err != nil {
 		log.Fatalf("proxying error: %v", err)
 	}
