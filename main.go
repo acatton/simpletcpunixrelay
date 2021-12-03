@@ -186,10 +186,7 @@ func main() {
 		usage(progname)
 	}
 
-	sourceAddr := args[0]
-	destAddr := args[1]
-
-	err := run(sourceAddr, destAddr)
+	err := run(args[0], args[1])
 	if err != nil {
 		log.Fatalf("proxying error: %v", err)
 	}
