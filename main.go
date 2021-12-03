@@ -126,10 +126,7 @@ func (p *proxy) handleConn(in net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	p.wg.Add(2)
-
 	go func() {
-		defer p.wg.Done()
 		defer wg.Done()
 		_, err := io.Copy(in, out)
 		if err != nil {
@@ -138,7 +135,6 @@ func (p *proxy) handleConn(in net.Conn) {
 	}()
 
 	go func() {
-		defer p.wg.Done()
 		defer wg.Done()
 		_, err := io.Copy(out, in)
 		if err != nil {
