@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -44,7 +45,7 @@ func isUnixSocket(addr string) bool {
 //
 // Depending on whether the source address is a unix socket address or not, it
 // creates a TCPListener or an UnixListener.
-func getSourceListener(addr string) (net.Listener, error) {
+func getSourceListener(ctx context.Context, addr string) (net.Listener, error) {
 	network := "tcp"
 	if isUnixSocket(addr) {
 		network = "unix"
@@ -84,9 +85,9 @@ func (p *proxy) handleError(err error) {
 // run runs the main proxy server.
 //
 // This hangs for ever, or until there is a fatal error on the service.
-func (p *proxy) run() error {
+func (p *proxy) run(ctx context.Context) error {
 	p.wg.Add(1)
-	go p.handleError(p.accept())
+	go p.handleError(p.accept(ctx))
 
 	p.wg.Wait()
 	return p.err
@@ -95,7 +96,7 @@ func (p *proxy) run() error {
 // accept runs the main accept loop of the program.
 //
 // Unless Accept() fails, this will hang forever.
-func (p *proxy) accept() error {
+func (p *proxy) accept(ctx context.Context) error {
 	defer p.wg.Done()
 
 	for {
@@ -104,7 +105,7 @@ func (p *proxy) accept() error {
 			return fmt.Errorf("could not listener.Accept(): %w", err)
 		}
 		p.wg.Add(1)
-		go p.handleConn(conn)
+		go p.handleConn(ctx, conn)
 	}
 }
 
@@ -112,22 +113,35 @@ func (p *proxy) accept() error {
 //
 // It is responsible for connecting to the destination, and copying data back
 // and forth.
-func (p *proxy) handleConn(in net.Conn) {
+func (p *proxy) handleConn(parentCtx context.Context, in net.Conn) {
 	defer p.wg.Done()
-	defer in.Close()
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		<-ctx.Done()
+		in.Close()
+	}()
 
 	out, err := p.connector()
 	if err != nil {
 		logError("could not connect to destination: %v", err)
 		return
 	}
-	defer out.Close()
+	wg.Add(1)
+	go func() {
+		<-ctx.Done()
+		out.Close()
+	}()
 
-	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
+		defer cancel()
 		_, err := io.Copy(in, out)
 		if err != nil {
 			logError("while copying stream from destination back to the source: %v", err)
@@ -136,6 +150,7 @@ func (p *proxy) handleConn(in net.Conn) {
 
 	go func() {
 		defer wg.Done()
+		defer cancel()
 		_, err := io.Copy(out, in)
 		if err != nil {
 			logError("while copying stream from source into the destination: %v", err)
@@ -145,38 +160,53 @@ func (p *proxy) handleConn(in net.Conn) {
 	wg.Wait()
 }
 
-func run(sourceAddr, destAddr string) error {
-	listener, err := getSourceListener(sourceAddr)
+func run(parentCtx context.Context, sourceAddr, destAddr string) error {
+	ctx, cancel := context.WithCancel(parentCtx)
+
+	var wg sync.WaitGroup
+
+	listener, err := getSourceListener(ctx, sourceAddr)
 	if err != nil {
 		log.Fatalf("could not listen on the source: %v", err)
 	}
-	defer func() {
-		if isUnixSocket(sourceAddr) {
-			err := os.Remove(sourceAddr)
-			if err != nil {
-				logError("could not remove socket %s", sourceAddr)
-			}
-		}
+
+	wg.Add(1)
+	go func() { // Closes the listener once the context is canceed
+		defer wg.Done()
+		<-ctx.Done()
+		listener.Close()
 	}()
-	defer listener.Close()
 
-	p := proxy{
-		listener: listener,
-		connector: func(address string) func() (net.Conn, error) {
-			network := "tcp"
-			if isUnixSocket(address) {
-				network = "unix"
-			}
-			return func() (net.Conn, error) {
-				return net.Dial(network, address)
-			}
-		}(destAddr),
-	}
+	err = nil
+	wg.Add(1)
+	go func() { // Run the proxy
+		defer wg.Done()
+		defer cancel()
 
-	return p.run()
+		p := proxy{
+			listener: listener,
+			connector: func(address string) func() (net.Conn, error) {
+				network := "tcp"
+				if isUnixSocket(address) {
+					network = "unix"
+				}
+				return func() (net.Conn, error) {
+					return net.Dial(network, address)
+				}
+			}(destAddr),
+		}
+
+		err = p.run(ctx)
+	}()
+
+	wg.Wait()
+	return err
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel
+
 	flag.Parse()
 	progname := os.Args[0]
 
@@ -186,7 +216,7 @@ func main() {
 		usage(progname)
 	}
 
-	err := run(args[0], args[1])
+	err := run(ctx, args[0], args[1])
 	if err != nil {
 		log.Fatalf("proxying error: %v", err)
 	}
