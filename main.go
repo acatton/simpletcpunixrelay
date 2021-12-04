@@ -91,7 +91,10 @@ func (p *proxy) handleError(err error) {
 // This hangs for ever, or until there is a fatal error on the service.
 func (p *proxy) run(ctx context.Context) error {
 	p.wg.Add(1)
-	go p.handleError(p.accept(ctx))
+	go func () {
+		defer p.wg.Done()
+		p.handleError(p.accept(ctx))
+	}()
 
 	p.wg.Wait()
 	return p.err
@@ -101,8 +104,6 @@ func (p *proxy) run(ctx context.Context) error {
 //
 // Unless Accept() fails, this will hang forever.
 func (p *proxy) accept(ctx context.Context) error {
-	defer p.wg.Done()
-
 	for {
 		conn, err := p.listener.Accept()
 		if errors.Is(err, net.ErrClosed) { // The context was cancelled
@@ -111,7 +112,10 @@ func (p *proxy) accept(ctx context.Context) error {
 			return fmt.Errorf("could not listener.Accept(): %w", err)
 		}
 		p.wg.Add(1)
-		go p.handleConn(ctx, conn)
+		go func () {
+			defer p.wg.Done()
+			p.handleConn(ctx, conn)
+		}()
 	}
 }
 
@@ -120,14 +124,13 @@ func (p *proxy) accept(ctx context.Context) error {
 // It is responsible for connecting to the destination, and copying data back
 // and forth.
 func (p *proxy) handleConn(parentCtx context.Context, in net.Conn) {
-	defer p.wg.Done()
-
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-ctx.Done()
 		in.Close()
 	}()
@@ -139,6 +142,7 @@ func (p *proxy) handleConn(parentCtx context.Context, in net.Conn) {
 	}
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-ctx.Done()
 		out.Close()
 	}()
