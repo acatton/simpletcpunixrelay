@@ -7,14 +7,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+
+	"golang.org/x/sys/unix"
 )
 
 const usageExit = 64
@@ -74,7 +78,7 @@ func (p *proxy) handleError(err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.err == nil {
+	if p.err != nil {
 		log.Printf("ERROR: ignored error: %v", err)
 		return
 	}
@@ -101,7 +105,9 @@ func (p *proxy) accept(ctx context.Context) error {
 
 	for {
 		conn, err := p.listener.Accept()
-		if err != nil {
+		if errors.Is(err, net.ErrClosed) { // The context was cancelled
+			return nil
+		} else if err != nil {
 			return fmt.Errorf("could not listener.Accept(): %w", err)
 		}
 		p.wg.Add(1)
@@ -175,6 +181,9 @@ func run(parentCtx context.Context, sourceAddr, destAddr string) error {
 		defer wg.Done()
 		<-ctx.Done()
 		listener.Close()
+		if isUnixSocket(sourceAddr) {
+			os.Remove(sourceAddr)
+		}
 	}()
 
 	err = nil
@@ -205,7 +214,6 @@ func run(parentCtx context.Context, sourceAddr, destAddr string) error {
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
-	_ = cancel
 
 	flag.Parse()
 	progname := os.Args[0]
@@ -216,8 +224,17 @@ func main() {
 		usage(progname)
 	}
 
+	sigCh := make(chan os.Signal)
+	signal.Notify(sigCh, os.Interrupt, unix.SIGTERM)
+	go func() {
+		<-sigCh
+		log.Println("Cleaning up...")
+		cancel()
+	}()
+
 	err := run(ctx, args[0], args[1])
 	if err != nil {
 		log.Fatalf("proxying error: %v", err)
 	}
+	log.Println("Exiting. That's all folks.")
 }
